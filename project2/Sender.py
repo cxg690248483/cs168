@@ -67,8 +67,14 @@ class Sender(BasicSender.BasicSender):
                 dup_ack_num = 0
                 continue
             received_packet = self.handle_response(response)
+            
+            #if received packet is invalid, ignore it#
+            if(received_packet == None):
+                continue
+
             ack = int(received_packet[1])
-            #check if it is the last seqno received
+            
+            #check if it is the last seqno received#
             if(self.end_seqno != None and ack == self.end_seqno + 1):
                 break
             if ack < self.window[0]:
@@ -91,6 +97,7 @@ class Sender(BasicSender.BasicSender):
     def handle_timeout(self):
         for packet in self.packet_cached:
             self.send(packet)
+    
     #print "send: %s" % packet
     #self.seqno += 1
 
