@@ -16,7 +16,7 @@ class Sender(BasicSender.BasicSender):
         self.file_read = True
         if self.infile == sys.stdin:
                 self.file_read = False
-        self.data_size = 1200
+        self.data_size = 120
         self.timeout = 0.5
         self.window_size = 5
         self.seqno = -1
@@ -24,7 +24,6 @@ class Sender(BasicSender.BasicSender):
         self.end_seqno = None
         self.msg_type = None
         self.packet_cached = []
-
     def handle_response(self,response_packet):
         if Checksum.validate_checksum(response_packet):
             print "recv: %s" % response_packet
@@ -34,7 +33,7 @@ class Sender(BasicSender.BasicSender):
             print "recv: %s <--- CHECKSUM FAILED" % response_packet
     # Main sending loop.
     def start(self):
-        for i in range(0, 5):
+        for i in range(5):
             msg = ""
             self.seqno += 1
             if self.file_read:
@@ -53,19 +52,19 @@ class Sender(BasicSender.BasicSender):
             self.send(packet)
             self.packet_cached.append(packet)
             self.window.append(i)
-
-            print "send: %s" % packet
+            #print "send: %s" % packet
             if self.msg_type == 'end':
                 if self.end_seqno == None:
                     self.end_seqno = self.seqno
                     break
-    
         dup_ack_num = 0
         while True:
+            #print self.window
             response = self.receive(self.timeout)
             if(response == None):
-                #print "timeout dude!"
+                print "timeout dude!"
                 self.handle_timeout()
+                dup_ack_num = 0
                 continue
             received_packet = self.handle_response(response)
             ack = int(received_packet[1])
@@ -77,10 +76,14 @@ class Sender(BasicSender.BasicSender):
             if ack == self.window[0]:
                 dup_ack_num += 1
                 if dup_ack_num == 3:
+                    print "dup dude!"
                     self.handle_dup_ack(ack)
+                    dup_ack_num = 0
                 continue
             else:
+                print "handle_new_ack"
                 self.handle_new_ack(ack)
+                dup_ack_num = 0
 
 
 
@@ -88,17 +91,21 @@ class Sender(BasicSender.BasicSender):
     def handle_timeout(self):
         for packet in self.packet_cached:
             self.send(packet)
-            print "send: %s" % packet
+    #print "send: %s" % packet
     #self.seqno += 1
 
 
 
     def handle_new_ack(self, ack):
         move_size = ack - self.window[0]
-        if self.msg_type == 'end':
-            return
+        if self.msg_type == 'end':# and (self.end_seqno != None and ack == self.end_seqno + 1) :
+            for i in range(1, move_size + 1):
+                self.seqno += 1
+                self.window.pop(0)
+                self.window.append(self.seqno)
+                return
         for i in range(1, move_size + 1):
-            self.seqno += i
+            self.seqno += 1
             self.window.pop(0)
             self.packet_cached.pop(0)
             
@@ -109,7 +116,8 @@ class Sender(BasicSender.BasicSender):
                 msg = self.infile.read(self.data_size)
             else:
                 msg = raw_input("Message:")
-                self.msg_type = 'data'
+
+            self.msg_type = 'data'
             if self.seqno == 0:
                 self.msg_type = 'start'
             if msg == "":
@@ -121,14 +129,16 @@ class Sender(BasicSender.BasicSender):
             self.send(packet)
             self.packet_cached.append(packet)
 
-            print "send: %s" % packet
+            #print "send: %s" % packet
             if self.msg_type == 'end':
                 if self.end_seqno == None:
                     self.end_seqno = self.seqno
+                    return
+                return
 
 
     def handle_dup_ack(self, ack):
-        handle_timeout()
+        self.handle_timeout()
 
     def log(self, msg):
         if self.debug:
