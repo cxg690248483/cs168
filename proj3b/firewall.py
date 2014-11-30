@@ -39,10 +39,11 @@ class Firewall:
         #proj 3b
         if(indicator == 'deny'):
             RSTPacket = checker.make_RST(pkt)
+            print "sending rst packet..."
             if pkt_dir == PKT_DIR_INCOMING:
-                self.iface_int.send_ip_packet(RSTPacket)
-            else:
                 self.iface_ext.send_ip_packet(RSTPacket)
+            else:
+                self.iface_int.send_ip_packet(RSTPacket)
             #self.ifact_ext.send_ip_packet(RSTPacket)
             
             #proj 3b
@@ -115,7 +116,7 @@ if length % 2 != 0:
     while sum >> 16 != 0:
         sum = (sum & 0xFFFF) + (sum >> 16)
     return ~sum & 0xFFFF
-def compute_checksum_tcp(pkt, length):
+def compute_checksum_tcp(pkt, length, ip_pkt):
     i = 0
     sum = 0
     while i < length - 1:
@@ -127,8 +128,16 @@ def compute_checksum_tcp(pkt, length):
 if length % 2 != 0:
     sum += struct.unpack('!B', pkt[i: i + 1])[0]
     
+    sum += struct.unpack('!H', ip_pkt[12: 14])[0]
+    sum += struct.unpack('!H', ip_pkt[14: 16])[0]
+    sum += struct.unpack('!H', ip_pkt[16: 18])[0]
+    sum += struct.unpack('!H', ip_pkt[18: 20])[0]
+    sum += 0x06
+    sum += 20
     while sum >> 16 != 0:
         sum = (sum & 0xFFFF) + (sum >> 16)
+    
+    
     return ~sum & 0xFFFF
 #proj 3b
 
@@ -162,88 +171,104 @@ class PacketChecker:
             print ip
             
             for curr_rule in protocol_rules:
-                if curr_rule[0] == 'deny':
-                    return 'deny'
+                #if curr_rule[0] == 'deny':
+                #return 'deny'
                 ip_rule = curr_rule[1]
                 port_rule = curr_rule[2]
                 
                 if ip_rule == 'any' or ip_rule == '0.0.0.0/0':
-                    
                     if port_rule == 'any':
+                        if curr_rule[0] == 'deny':
+                            return 'deny'
                         if_pass = True if curr_rule[0] == 'pass' else False
                     # port in rule is a range
                     elif '-' in port_rule:
                         start, end = port_rule.split('-')
                         if port in range(int(start), int(end) + 1):
+                            if curr_rule[0] == 'deny':
+                                return 'deny'
                             if_pass = True if curr_rule[0] == 'pass' else False
                     # port in rule is a number
                     else:
-                        
-                        
                         if str(port) == port_rule:
-                            
+                            if curr_rule[0] == 'deny':
+                                return 'deny'
                             if_pass = True if curr_rule[0] == 'pass' else False
                                 # ip rule is 2 byte country code
                                 elif len(ip_rule) == 2:
                                     country = self.find_country(ip, self.geoipdb)
                                         if(country == ip_rule):
                                             if port_rule == 'any':
-                                                if_pass = True if curr_rule[0] == 'pass' else False
-                                                    # port in rule is a range
-                                                    elif '-' in port_rule:
-                                                        start, end = port_rule.split('-')
-                                                            if port in range(int(start), int(end) + 1):
-                                                                if_pass = True if curr_rule[0] == 'pass' else False
-                                                                    # port in rule is a number
-                                                                    else:
-                                                                        if str(port) == port_rule:
-                                                                            if_pass = True if curr_rule[0] == 'pass' else False
-                                                                                # ip rule is prefix expression
-                                                                                elif '/' in ip_rule:
-                                                                                    
-                                                                                    prefix, prefix_len = ip_rule.split('/')
-                                                                                        prefix_len = int(prefix_len)
-                                                                                            if(self.ip_match_prefix(ip, prefix, prefix_len)):
-                                                                                                if port_rule == 'any':
+                                                if curr_rule[0] == 'deny':
+                                                    return 'deny'
+                                                        if_pass = True if curr_rule[0] == 'pass' else False
+                                                            # port in rule is a range
+                                                            elif '-' in port_rule:
+                                                                start, end = port_rule.split('-')
+                                                                    if port in range(int(start), int(end) + 1):
+                                                                        if curr_rule[0] == 'deny':
+                                                                            return 'deny'
+                                                                                if_pass = True if curr_rule[0] == 'pass' else False
+                                                                                    # port in rule is a number
+                                                                                    else:
+                                                                                        if str(port) == port_rule:
+                                                                                            if curr_rule[0] == 'deny':
+                                                                                                return 'deny'
                                                                                                     if_pass = True if curr_rule[0] == 'pass' else False
-                                                                                                        # port in rule is a range
-                                                                                                        elif '-' in port_rule:
-                                                                                                            start, end = port_rule.split('-')
-                                                                                                                if port in range(int(start), int(end) + 1):
-                                                                                                                    if_pass = True if curr_rule[0] == 'pass' else False
-                                                                                                                        # port in rule is a number
-                                                                                                                        else:
-                                                                                                                            if str(port) == port_rule:
-                                                                                                                                if_pass = True if curr_rule[0] == 'pass' else False
-                                                                                                                                    # ip rule is an ip address
-                                                                                                                                    else:
-                                                                                                                                        
-                                                                                                                                        if(ip == ip_rule):
-                                                                                                                                            
-                                                                                                                                            if port_rule == 'any':
-                                                                                                                                                if_pass = True if curr_rule[0] == 'pass' else False
-                                                                                                                                                    # port in rule is a range
-                                                                                                                                                    elif '-' in port_rule:
-                                                                                                                                                        start, end = port_rule.split('-')
-                                                                                                                                                            if port in range(int(start), int(end) + 1):
-                                                                                                                                                                if_pass = True if curr_rule[0] == 'pass' else False
-                                                                                                                                                                    # port in rule is a number
-                                                                                                                                                                    else:
-                                                                                                                                                                        if str(port) == port_rule:
-                                                                                                                                                                            
-                                                                                                                                                                            if_pass = True if curr_rule[0] == 'pass' else False
-                                                                                                                                                                                return if_pass
-                                                                                                                                                                            # dns type rule applied
-                                                                                                                                                                            else:
-                                                                                                                                                                                domain = decoded_packet[1]
-                                                                                                                                                                                    for curr_rule in protocol_rules:
-                                                                                                                                                                                        domain_rule  = curr_rule[1]
-                                                                                                                                                                                            if self.domain_match(domain, domain_rule):
-                                                                                                                                                                                                
-                                                                                                                                                                                                if_pass = True if curr_rule[0] == 'pass' else False
-                                                                                                                                                                                                    
-                                                                                                                                                                                                    return if_pass
-                                                                                                                                                                                                
+                                                                                                        # ip rule is prefix expression
+                                                                                                        elif '/' in ip_rule:
+                                                                                                            prefix, prefix_len = ip_rule.split('/')
+                                                                                                                prefix_len = int(prefix_len)
+                                                                                                                    if(self.ip_match_prefix(ip, prefix, prefix_len)):
+                                                                                                                        if port_rule == 'any':
+                                                                                                                            if curr_rule[0] == 'deny':
+                                                                                                                                return 'deny'
+                                                                                                                                    if_pass = True if curr_rule[0] == 'pass' else False
+                                                                                                                                        # port in rule is a range
+                                                                                                                                        elif '-' in port_rule:
+                                                                                                                                            start, end = port_rule.split('-')
+                                                                                                                                                if port in range(int(start), int(end) + 1):
+                                                                                                                                                    if curr_rule[0] == 'deny':
+                                                                                                                                                        return 'deny'
+                                                                                                                                                            if_pass = True if curr_rule[0] == 'pass' else False
+                                                                                                                                                                # port in rule is a number
+                                                                                                                                                                else:
+                                                                                                                                                                    if str(port) == port_rule:
+                                                                                                                                                                        if curr_rule[0] == 'deny':
+                                                                                                                                                                            return 'deny'
+                                                                                                                                                                                if_pass = True if curr_rule[0] == 'pass' else False
+                                                                                                                                                                                    # ip rule is an ip address
+                                                                                                                                                                                    else:
+                                                                                                                                                                                        if(ip == ip_rule):
+                                                                                                                                                                                            if port_rule == 'any':
+                                                                                                                                                                                                if curr_rule[0] == 'deny':
+                                                                                                                                                                                                    return 'deny'
+                                                                                                                                                                                                        if_pass = True if curr_rule[0] == 'pass' else False
+                                                                                                                                                                                                            # port in rule is a range
+                                                                                                                                                                                                            elif '-' in port_rule:
+                                                                                                                                                                                                                start, end = port_rule.split('-')
+                                                                                                                                                                                                                    if port in range(int(start), int(end) + 1):
+                                                                                                                                                                                                                        if curr_rule[0] == 'deny':
+                                                                                                                                                                                                                            return 'deny'
+                                                                                                                                                                                                                                if_pass = True if curr_rule[0] == 'pass' else False
+                                                                                                                                                                                                                                    # port in rule is a number
+                                                                                                                                                                                                                                    else:
+                                                                                                                                                                                                                                        if str(port) == port_rule:
+                                                                                                                                                                                                                                            if curr_rule[0] == 'deny':
+                                                                                                                                                                                                                                                return 'deny'
+                                                                                                                                                                                                                                                    if_pass = True if curr_rule[0] == 'pass' else False
+                                                                                                                                                                                                                                                return if_pass 
+            # dns type rule applied
+            else:
+            domain = decoded_packet[1]
+            for curr_rule in protocol_rules:
+                domain_rule  = curr_rule[1]
+                if self.domain_match(domain, domain_rule):
+                    
+                    if_pass = True if curr_rule[0] == 'pass' else False
+            
+                        return if_pass
+                    
 
 
 # decode pakcet
@@ -416,23 +441,47 @@ def make_RST(self, pkt):
             new_app_packet = new_app_packet[0: 2] + app_lvl_packet[0: 2] + new_app_packet[4: ]
             #set new flags
             flags = struct.unpack('!B', app_lvl_packet[13])[0]
-            new_flags = flags | 0x04
+            new_flags = flags & 0x00
+            new_flags = new_flags | 0x04
+            new_flags = new_flags | 0x10
             #new_app_packet[12] = struct.pack('!B', new_flags)
-            new_app_packet = new_app_packet[0: 12] + struct.pack('!B', new_flags) + new_app_packet[13: ]
+            new_app_packet = new_app_packet[0: 13] + struct.pack('!B', new_flags) + new_app_packet[14: ]
             
-            offset = struct.unpack('!B', app_lvl_packet[12])[0] >> 4
-            new_checksum = compute_checksum_tcp(new_app_packet, offset * 4)
+            #update tcp header ack
+            seq = struct.unpack('!L', app_lvl_packet[4: 8])[0]
+            new_app_packet = new_app_packet[0: 8] + struct.pack('!L', seq + 1) + new_app_packet[12: ]
+            #update tcp header length and checksum
+            new_app_packet = new_app_packet[0: 12] + struct.pack('!B', 5 << 4) + new_app_packet[13: ]
+            #offset = struct.unpack('!B', app_lvl_packet[12])[0] >> 4
+            #print "old packet length: {}".format(offset)
+            new_checksum = compute_checksum_tcp(new_app_packet,  20, new_packet)
             
             #new_app_packet[16: 18] = struct.pack('!H', new_checksum)
             new_app_packet = new_app_packet[0: 16] + struct.pack('!H', new_checksum) + new_app_packet[18: ]
+            print "checksum: {}, correct checksum: {}".format(new_checksum, compute_checksum_tcp(new_app_packet, 20, new_packet))
             #new_packet[self.ip_header_length: ] = new_app_packet
-            new_packet = new_packet[0: self.ip_header_length] + new_app_packet
+            new_packet = new_packet[0: self.ip_header_length] + new_app_packet[0: 20]
+            
+            
+            #update ip header's total length and checksum
+            new_packet = new_packet[0: 2] + struct.pack('!H', self.ip_header_length + 20) + new_packet[4: ]
+            #print "new packet length: {}".format(struct.unpack('!B', new_app_packet[12])[0] >> 4)
+            checksum = compute_checksum_ip(new_packet, self.ip_header_length)
+            #new_packet[10: 12] = struct.pack('!H', checksum)
+            new_packet = new_packet[0: 10] + struct.pack('!H', checksum) + new_packet[12: ]
+            
             return new_packet
 
 
-
-
 #proj 3b
+
+
+
+
+
+
+
+
 
 
 
